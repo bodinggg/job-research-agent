@@ -14,6 +14,7 @@ class Settings(BaseSettings):
 
     # Model Configuration
     model: str = "Qwen/Qwen2.5-72B-Instruct"  # SiliconFlow model
+    embedding_model: str = "BAAI/bge-large-zh-v1.5"  # Embedding model for RAG
     groq_model: str = "llama-3.3-70b-versatile"  # Groq model fallback
     google_model: str = "gemini-2.0-flash"
 

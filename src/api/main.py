@@ -7,6 +7,7 @@ from typing import Optional
 from src.graph.workflow import run_research
 from src.config import settings
 from src.storage import session_repo, report_repo, message_repo
+from src.storage.qdrant_client import get_qdrant_client
 from src.conversation import generate_response, intent_detector
 import logging
 
@@ -104,6 +105,20 @@ async def research(request: ResearchRequest) -> ResearchResponse:
             research_results=result_dict.get('research_results', {}),
         )
         session_repo.add_report(session.id, report.id)
+
+        # Index report to Qdrant for RAG
+        try:
+            qdrant_client = get_qdrant_client()
+            await qdrant_client.index_report(
+                report_id=report.id,
+                session_id=session.id,
+                company=request.company,
+                position=request.position,
+                content=report.content,
+            )
+            logger.info(f"Report indexed to Qdrant: {report.id}")
+        except Exception as e:
+            logger.warning(f"Failed to index report to Qdrant: {e}")
 
         logger.info(f"Research completed. Score: {report.quality_score}")
 

@@ -79,6 +79,8 @@
 - **FastAPI**：高性能异步API后端
 - **Streamlit**：交互式Web UI
 - **SiliconFlow API**：OpenAI兼容接口（使用Qwen模型）
+- **Qdrant**：向量数据库，用于RAG语义检索
+- **BGE Embedding**：中文语义 embedding 模型（bge-large-zh-v1.5）
 
 ## 快速开始
 
@@ -104,13 +106,19 @@ cp .env.example .env
 
 从 [siliconflow.cn](https://siliconflow.cn) 获取API密钥
 
-### 4. 启动后端
+### 4. 启动 Qdrant（用于RAG向量存储）
+
+```bash
+docker-compose up -d qdrant
+```
+
+### 5. 启动后端
 
 ```bash
 uvicorn src.api.main:app --reload --port 8002
 ```
 
-### 5. 启动前端（新终端）
+### 6. 启动前端（新终端）
 
 ```bash
 streamlit run src/ui/app.py
@@ -127,6 +135,7 @@ job-research-agent/
 ├── src/
 │   ├── config.py               # 配置管理
 │   ├── llm.py                  # LLM客户端工厂
+│   ├── embedding.py            # Embedding客户端
 │   ├── think_log.py            # 思考过程日志
 │   ├── api/main.py             # FastAPI后端
 │   ├── agents/                  # Agent实现

@@ -1,14 +1,18 @@
 """Qdrant client wrapper for vector storage and retrieval."""
+import uuid
 from typing import Optional
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct
-import uuid
+from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue
 
 from src.config import settings
+from src.embedding import get_embeddings
 
 
 class QdrantClientWrapper:
-    """Wrapper for Qdrant vector operations."""
+    """Wrapper for Qdrant vector operations with real embeddings."""
+
+    # Embedding dimension for bge-large-zh-v1.5
+    EMBEDDING_SIZE = 1024
 
     def __init__(self):
         self.client = QdrantClient(
@@ -27,12 +31,12 @@ class QdrantClientWrapper:
             self.client.create_collection(
                 collection_name=self.collection_name,
                 vectors_config=VectorParams(
-                    size=1536,  # Standard embedding size
+                    size=self.EMBEDDING_SIZE,
                     distance=Distance.COSINE,
                 ),
             )
 
-    def index_report(
+    async def index_report(
         self,
         report_id: str,
         session_id: str,
@@ -41,7 +45,7 @@ class QdrantClientWrapper:
         content: str,
         chunk_size: int = 500,
     ):
-        """Index a report into Qdrant.
+        """Index a report into Qdrant with embeddings.
 
         Args:
             report_id: Unique report identifier
@@ -51,14 +55,20 @@ class QdrantClientWrapper:
             content: Full report content
             chunk_size: Approximate characters per chunk
         """
-        # Split content into chunks (simple character-based splitting)
+        embeddings = get_embeddings()
+
+        # Split content into chunks
         chunks = self._split_into_chunks(content, chunk_size)
 
+        # Generate embeddings for all chunks
+        vectors = await embeddings.aembed_documents(chunks)
+
+        # Create points with real vectors
         points = []
-        for i, chunk in enumerate(chunks):
+        for i, (chunk, vector) in enumerate(zip(chunks, vectors)):
             point = PointStruct(
                 id=str(uuid.uuid4()),
-                vector=self._get_dummy_vector(),  # Placeholder - real implementation needs embedding model
+                vector=vector,
                 payload={
                     "report_id": report_id,
                     "session_id": session_id,
@@ -76,14 +86,14 @@ class QdrantClientWrapper:
                 points=points,
             )
 
-    def search(
+    async def search(
         self,
         query: str,
         session_id: Optional[str] = None,
         company: Optional[str] = None,
         top_k: int = 5,
     ) -> list[dict]:
-        """Search for relevant report chunks.
+        """Search for relevant report chunks using vector similarity.
 
         Args:
             query: Search query
@@ -94,37 +104,72 @@ class QdrantClientWrapper:
         Returns:
             List of matching chunk dictionaries
         """
-        # Note: Real implementation would:
-        # 1. Generate query embedding using an embedding model
-        # 2. Use qdrant_client.search() with the vector
-        # For now, return empty list as placeholder
-        return []
+        embeddings = get_embeddings()
+
+        # Generate query embedding
+        query_vector = await embeddings.aembed_query(query)
+
+        # Build filter if session_id or company provided
+        filter_conditions = []
+        if session_id:
+            filter_conditions.append(
+                FieldCondition(
+                    key="session_id",
+                    match=MatchValue(value=session_id),
+                )
+            )
+        if company:
+            filter_conditions.append(
+                FieldCondition(
+                    key="company",
+                    match=MatchValue(value=company),
+                )
+            )
+
+        search_filter = Filter(
+            must=filter_conditions
+        ) if filter_conditions else None
+
+        # Search Qdrant
+        results = self.client.search(
+            collection_name=self.collection_name,
+            query_vector=query_vector,
+            query_filter=search_filter,
+            limit=top_k,
+        )
+
+        # Format results
+        return [
+            {
+                "content": hit.payload["content"],
+                "score": hit.score,
+                "report_id": hit.payload["report_id"],
+                "company": hit.payload["company"],
+                "position": hit.payload["position"],
+            }
+            for hit in results
+        ]
 
     def _split_into_chunks(self, content: str, chunk_size: int) -> list[str]:
         """Split content into chunks of approximately chunk_size."""
         lines = content.split("\n")
         chunks = []
         current_chunk = []
+        current_length = 0
 
         for line in lines:
-            if len("\n".join(current_chunk)) + len(line) > chunk_size:
-                if current_chunk:
-                    chunks.append("\n".join(current_chunk))
-                    current_chunk = []
+            line_length = len(line)
+            if current_length + line_length > chunk_size and current_chunk:
+                chunks.append("\n".join(current_chunk))
+                current_chunk = []
+                current_length = 0
             current_chunk.append(line)
+            current_length += line_length + 1  # +1 for newline
 
         if current_chunk:
             chunks.append("\n".join(current_chunk))
 
         return chunks
-
-    def _get_dummy_vector(self) -> list[float]:
-        """Return a dummy vector for testing.
-
-        Note: Real implementation should use an embedding model.
-        """
-        import random
-        return [random.random() for _ in range(1536)]
 
 
 # Singleton instance

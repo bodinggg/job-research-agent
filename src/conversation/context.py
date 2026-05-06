@@ -2,6 +2,7 @@
 from typing import Optional
 
 from src.storage import report_repo, message_repo
+from src.storage.qdrant_client import get_qdrant_client
 
 
 async def assemble_context(
@@ -9,7 +10,7 @@ async def assemble_context(
     session_id: str,
     top_k: int = 5,
 ) -> str:
-    """Assemble context for dialogue from session history and reports.
+    """Assemble context for dialogue from session history and reports using RAG.
 
     Args:
         query: User's question
@@ -30,12 +31,33 @@ async def assemble_context(
             history_lines.append(f"- {role_label}: {msg.content}")
         parts.append("当前会话历史:\n" + "\n".join(history_lines))
 
-    # 2. Get latest report for the session
-    report = report_repo.get_latest(session_id)
-    if report:
-        # For now, include full report content as context
-        # In production, this would use RAG to retrieve relevant chunks
-        parts.append(f"相关研究报告 ({report.quality_score}/10):\n{report.content}")
+    # 2. Get relevant report chunks using RAG
+    try:
+        qdrant_client = get_qdrant_client()
+        search_results = await qdrant_client.search(
+            query=query,
+            session_id=session_id,
+            top_k=top_k,
+        )
+
+        if search_results:
+            # Format retrieved chunks with scores
+            chunks_text = []
+            for i, result in enumerate(search_results, 1):
+                chunks_text.append(
+                    f"[相关段落{i}]({result['score']:.2f}): {result['content']}"
+                )
+            parts.append("相关报告内容:\n" + "\n\n".join(chunks_text))
+        else:
+            # Fallback to full report if no RAG results
+            report = report_repo.get_latest(session_id)
+            if report:
+                parts.append(f"研究报告内容:\n{report.content}")
+    except Exception:
+        # If RAG fails, fall back to full report
+        report = report_repo.get_latest(session_id)
+        if report:
+            parts.append(f"研究报告内容:\n{report.content}")
 
     # 3. Add user query
     parts.append(f"用户问题: {query}")
