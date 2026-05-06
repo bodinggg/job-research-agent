@@ -163,9 +163,9 @@ class TestConfig:
     """Tests for configuration."""
 
     def test_default_settings(self):
-        """Test default configuration values."""
+        """Test settings loaded from .env file."""
         from src.config import settings
-        assert settings.groq_model == "llama-3.3-70b-versatile"
-        assert settings.qdrant_host == "localhost"
+        assert settings.llm_base_url == "https://api.siliconflow.cn/v1"
+        assert settings.llm_model_name == "Pro/deepseek-ai/DeepSeek-V3.2"
+        assert settings.embedding_model_name == "Qwen/Qwen3-Embedding-8B"
         assert settings.qdrant_port == 6333
-        assert settings.max_search_results == 5

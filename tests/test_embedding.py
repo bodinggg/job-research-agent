@@ -8,41 +8,16 @@ class TestCreateEmbeddings:
     """Tests for create_embeddings factory function."""
 
     @patch('src.embedding.settings')
-    def test_create_embeddings_siliconflow(self, mock_settings):
-        """Test creating embeddings with SiliconFlow provider."""
-        mock_settings.embedding_provider = "siliconflow"
-        mock_settings.siliconflow_embedding_model = "BAAI/bge-large-zh-v1.5"
-        mock_settings.siliconflow_api_key = "test_key"
-        mock_settings.siliconflow_base_url = "https://api.siliconflow.cn/v1"
-
-        embeddings = create_embeddings()
-
-        assert embeddings.model == "BAAI/bge-large-zh-v1.5"
-        assert embeddings.openai_api_base == "https://api.siliconflow.cn/v1"
-
-    @patch('src.embedding.settings')
-    def test_create_embeddings_openai(self, mock_settings):
-        """Test creating embeddings with OpenAI provider."""
-        mock_settings.embedding_provider = "openai"
-        mock_settings.openai_embedding_model = "text-embedding-3-large"
-        mock_settings.openai_api_key = "test_key"
+    def test_create_embeddings_with_config(self, mock_settings):
+        """Test creating embeddings with settings."""
+        mock_settings.embedding_model_name = "text-embedding-3-large"
+        mock_settings.embedding_api_key = "test_key"
+        mock_settings.embedding_base_url = "https://api.openai.com/v1"
 
         embeddings = create_embeddings()
 
         assert embeddings.model == "text-embedding-3-large"
-        assert embeddings.openai_api_base is None  # OpenAI uses default base
-
-    @patch('src.embedding.settings')
-    def test_create_embeddings_default_fallback(self, mock_settings):
-        """Test creating embeddings falls back to SiliconFlow."""
-        mock_settings.embedding_provider = "unknown"
-        mock_settings.siliconflow_embedding_model = "BAAI/bge-large-zh-v1.5"
-        mock_settings.siliconflow_api_key = "test_key"
-        mock_settings.siliconflow_base_url = "https://api.siliconflow.cn/v1"
-
-        embeddings = create_embeddings()
-
-        assert embeddings.model == "BAAI/bge-large-zh-v1.5"
+        assert embeddings.openai_api_base == "https://api.openai.com/v1"
 
 
 class TestGetEmbeddings:

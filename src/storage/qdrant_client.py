@@ -12,7 +12,7 @@ class QdrantClientWrapper:
     """Wrapper for Qdrant vector operations with real embeddings."""
 
     # Embedding dimension for bge-large-zh-v1.5
-    EMBEDDING_SIZE = 1024
+    EMBEDDING_SIZE = 4096
 
     def __init__(self):
         self.client = QdrantClient(

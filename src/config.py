@@ -1,111 +1,47 @@
-"""Configuration settings with multi-provider support."""
-from pydantic_settings import BaseSettings, SettingsConfigDict
+"""Configuration settings."""
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
-class Settings(BaseSettings):
-    """Application settings with support for multiple LLM/embedding providers."""
+def getenv(key: str, default: str = "") -> str:
+    return os.getenv(key, default)
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # =============================================================================
-    # LLM Provider Configuration
-    # =============================================================================
-    # Supported providers: siliconflow, groq, openai
-    llm_provider: str = "siliconflow"
+def getenv_int(key: str, default: int = 0) -> int:
+    return int(os.getenv(key, str(default)))
 
-    # SiliconFlow (OpenAI-compatible)
-    siliconflow_api_key: str = ""
-    siliconflow_base_url: str = "https://api.siliconflow.cn/v1"
-    siliconflow_model: str = "Qwen/Qwen2.5-72B-Instruct"
 
-    # Groq
-    groq_api_key: str = ""
-    groq_model: str = "llama-3.3-70b-versatile"
+class Settings:
+    """Application settings."""
 
-    # OpenAI
-    openai_api_key: str = ""
-    openai_model: str = "gpt-4o"
+    # LLM
+    llm_provider: str = getenv("LLM_PROVIDER", "openai")
+    llm_base_url: str = getenv("LLM_BASE_URL", "https://api.openai.com/v1")
+    llm_api_key: str = getenv("LLM_API_KEY", "")
+    llm_model_name: str = getenv("LLM_MODEL_NAME", "gpt-4o")
 
-    # =============================================================================
-    # Embedding Provider Configuration
-    # =============================================================================
-    # Supported providers: siliconflow, openai, local
-    embedding_provider: str = "siliconflow"
+    # Embedding
+    embedding_provider: str = getenv("EMBEDDING_PROVIDER", "openai")
+    embedding_base_url: str = getenv("EMBEDDING_BASE_URL", "https://api.openai.com/v1")
+    embedding_api_key: str = getenv("EMBEDDING_API_KEY", "")
+    embedding_model_name: str = getenv("EMBEDDING_MODEL_NAME", "text-embedding-3-large")
 
-    # SiliconFlow Embedding
-    siliconflow_embedding_model: str = "BAAI/bge-large-zh-v1.5"
+    # Search
+    tavily_api_key: str = getenv("TAVILY_API_KEY", "")
 
-    # OpenAI Embedding
-    openai_embedding_model: str = "Qwen/Qwen3-Embedding-8B"
+    # Qdrant
+    qdrant_host: str = getenv("QDRANT_HOST", "localhost")
+    qdrant_port: int = getenv_int("QDRANT_PORT", 6333)
+    qdrant_collection: str = getenv("QDRANT_COLLECTION", "job_research")
 
-    # =============================================================================
-    # Search Configuration
-    # =============================================================================
-    tavily_api_key: str = ""
+    # Server
+    api_host: str = getenv("API_HOST", "0.0.0.0")
+    api_port: int = getenv_int("API_PORT", 8002)
 
-    # =============================================================================
-    # Qdrant Configuration
-    # =============================================================================
-    qdrant_host: str = "localhost"
-    qdrant_port: int = 6333
-    qdrant_collection: str = "job_research"
-
-    # =============================================================================
-    # Server Configuration
-    # =============================================================================
-    api_host: str = "0.0.0.0"
-    api_port: int = 8002
-
-    # =============================================================================
-    # Search Configuration
-    # =============================================================================
-    max_search_results: int = 5
-    search_timeout: int = 30
-
-    # =============================================================================
-    # Provider Accessors
-    # =============================================================================
-    @property
-    def api_key(self) -> str:
-        """Get API key based on current LLM provider."""
-        if self.llm_provider == "siliconflow":
-            return self.siliconflow_api_key
-        elif self.llm_provider == "groq":
-            return self.groq_api_key
-        elif self.llm_provider == "openai":
-            return self.openai_api_key
-        return ""
-
-    @property
-    def base_url(self) -> str:
-        """Get base URL based on current LLM provider."""
-        if self.llm_provider == "siliconflow":
-            return self.siliconflow_base_url
-        elif self.llm_provider == "groq":
-            return "https://api.groq.com/openai/v1"
-        elif self.llm_provider == "openai":
-            return "https://api.openai.com/v1"
-        return ""
-
-    @property
-    def model(self) -> str:
-        """Get model name based on current LLM provider."""
-        if self.llm_provider == "siliconflow":
-            return self.siliconflow_model
-        elif self.llm_provider == "groq":
-            return self.groq_model
-        elif self.llm_provider == "openai":
-            return self.openai_model
-        return ""
-
-    @property
-    def embedding_model(self) -> str:
-        """Get embedding model based on current embedding provider."""
-        if self.embedding_provider == "siliconflow":
-            return self.siliconflow_embedding_model
-        elif self.embedding_provider == "openai":
-            return self.openai_embedding_model
-        return self.siliconflow_embedding_model
+    max_search_results: int = getenv_int("MAX_SEARCH_RESULTS", 5)
+    search_timeout: int = getenv_int("SEARCH_TIMEOUT", 30)
 
 
 settings = Settings()
