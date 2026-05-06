@@ -4,16 +4,29 @@ from src.config import settings
 
 
 def create_embeddings() -> OpenAIEmbeddings:
-    """Create an embeddings client configured for SiliconFlow API.
+    """Create an embeddings client configured for current embedding provider.
 
     Returns:
         Configured OpenAIEmbeddings instance
     """
-    return OpenAIEmbeddings(
-        model=settings.embedding_model,
-        api_key=settings.api_key,
-        base_url=settings.base_url,
-    )
+    if settings.embedding_provider == "siliconflow":
+        return OpenAIEmbeddings(
+            model=settings.siliconflow_embedding_model,
+            api_key=settings.siliconflow_api_key,
+            base_url=settings.siliconflow_base_url,
+        )
+    elif settings.embedding_provider == "openai":
+        return OpenAIEmbeddings(
+            model=settings.openai_embedding_model,
+            api_key=settings.openai_api_key,
+        )
+    else:
+        # Default to SiliconFlow
+        return OpenAIEmbeddings(
+            model=settings.siliconflow_embedding_model,
+            api_key=settings.siliconflow_api_key,
+            base_url=settings.siliconflow_base_url,
+        )
 
 
 # Singleton instance
