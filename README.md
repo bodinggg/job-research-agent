@@ -6,6 +6,7 @@
 
 - **多Agent协作**：四个专业Agent（规划师、研究员、作者、评论家）协调工作
 - **并行搜索**：多研究维度并发网络搜索
+- **职位搜索**：支持猎聘网(Liepin)等多平台职位搜索
 - **质量控制**：自动报告评估与自我修正循环
 - **持续对话**：支持对报告进行追问，获取更深入的信息
 - **会话管理**：保存研究历史，随时切换对比
@@ -56,12 +57,13 @@
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                           Streamlit UI                                 │
-│   研究表单  │  报告展示  │  对话区域  │  会话历史侧边栏               │
+│   研究表单  │  报告展示  │  对话区域  │  会话历史侧边栏  │  职位搜索    │
 └──────────────────────────────┬────────────────────────────────────────┘
                                │ HTTP
 ┌──────────────────────────────▼────────────────────────────────────────┐
 │                           FastAPI Backend                              │
 │   POST /research  │  POST /dialogue  │  GET /sessions/{id}/history   │
+│   POST /search                                                   │
 └──────────────────────────────┬────────────────────────────────────────┘
                                │
               ┌────────────────┼────────────────┐
@@ -70,6 +72,12 @@
        │  Storage  │   │Conversation│   │  Graph    │
        │Repository │   │  Module   │   │ Workflow  │
        └───────────┘   └───────────┘   └───────────┘
+                               │
+                               ▼
+                     ┌─────────────────┐
+                     │  Search Module  │
+                     │  (Playwright)   │
+                     └─────────────────┘
 ```
 
 ## 技术栈
@@ -80,7 +88,7 @@
 - **Streamlit**：交互式Web UI
 - **SiliconFlow API**：OpenAI兼容接口（使用Qwen模型）
 - **Qdrant**：向量数据库，用于RAG语义检索
-- **BGE Embedding**：中文语义 embedding 模型（bge-large-zh-v1.5）
+- **Qwen3-Embedding**：中文语义 embedding 模型（通过SiliconFlow API）
 
 ## 快速开始
 
@@ -95,6 +103,9 @@ cd job-research-agent
 
 ```bash
 pip install -e .
+
+# 安装 Playwright 浏览器（用于职位搜索爬虫）
+playwright install chromium
 ```
 
 ### 3. 配置环境
@@ -115,8 +126,10 @@ docker-compose up -d qdrant
 ### 5. 启动后端
 
 ```bash
-uvicorn src.api.main:app --reload --port 8002
+uvicorn src.api.main:app --port 8002
 ```
+
+> 注意：不要使用 `--reload` 参数，Playwright 浏览器进程与 uvicorn 的自动重载功能存在冲突。
 
 ### 6. 启动前端（新终端）
 
@@ -146,6 +159,12 @@ job-research-agent/
 │   ├── graph/
 │   │   ├── state.py             # 状态定义
 │   │   └── workflow.py          # LangGraph工作流
+│   ├── search/                  # 职位搜索模块
+│   │   ├── models.py            # 数据模型 (JobSummary)
+│   │   ├── crawler.py           # 统一爬虫入口
+│   │   └── engines/             # 搜索引擎
+│   │       ├── liepin.py        # 猎聘网引擎
+│   │       └── boss.py          # Boss直聘引擎
 │   ├── storage/                  # 持久化层
 │   │   ├── models.py            # 数据模型
 │   │   ├── repository.py        # 仓储模式
@@ -159,7 +178,8 @@ job-research-agent/
 └── tests/
     ├── test_agents.py           # Agent测试
     ├── test_storage.py          # 存储测试
-    └── test_conversation.py     # 对话测试
+    ├── test_conversation.py     # 对话测试
+    └── test_search.py           # 搜索模块测试
 ```
 
 ## API接口
@@ -213,6 +233,34 @@ curl -X POST http://localhost:8002/dialogue \
 
 获取会话对话历史。
 
+### POST /search
+
+搜索职位（支持多平台聚合）。
+
+```bash
+curl -X POST http://localhost:8002/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Python工程师", "sites": ["liepin"], "city": "上海"}'
+```
+
+响应：
+```json
+{
+  "jobs": [
+    {
+      "source": "liepin",
+      "title": "Python工程师",
+      "company": "某科技公司",
+      "salary": "20-35k",
+      "address": "上海-浦东新区",
+      "job_url": "https://www.liepin.com/job/xxx.shtml"
+    }
+  ],
+  "total": 1,
+  "query": "Python工程师"
+}
+```
+
 ## 开发
 
 ### 运行测试
@@ -233,7 +281,7 @@ pytest tests/ --cov=src --cov-report=html
 2. **多Agent协作**：监督者模式与专业Agent协作
 3. **并行执行**：使用`asyncio.gather`并发执行任务
 4. **RAG检索增强**：报告向量化存储与语义检索
-5. **LLM工具使用**：DuckDuckGo搜索作为信息检索工具
+5. **浏览器自动化**：Playwright爬取动态渲染页面
 6. **会话管理**：有状态的多轮对话交互
 7. **意图检测**：基于规则和模式匹配的用户意图分类
 

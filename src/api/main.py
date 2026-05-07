@@ -9,6 +9,7 @@ from src.config import settings
 from src.storage import session_repo, report_repo, message_repo
 from src.storage.qdrant_client import get_qdrant_client
 from src.conversation import generate_response, intent_detector
+from src.search import search_jobs, JobSummary
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -69,6 +70,20 @@ class SessionResponse(BaseModel):
     report_count: int
     message_count: int
     created_at: str
+
+
+class SearchRequest(BaseModel):
+    """Request model for job search endpoint."""
+    query: str = Field(..., min_length=1, description="Search query (e.g., 'Python工程师')")
+    sites: list[str] = Field(default=["liepin"], description="Sites to search")
+    city: Optional[str] = Field(None, description="City filter")
+
+
+class SearchResponse(BaseModel):
+    """Response model for job search endpoint."""
+    jobs: list[JobSummary]
+    total: int
+    query: str
 
 
 # ============== Research Endpoint ==============
@@ -259,6 +274,27 @@ async def get_session_reports(session_id: str):
 async def health():
     """Health check endpoint."""
     return {"status": "healthy"}
+
+
+# ============== Search Endpoint ==============
+
+@app.post("/search", response_model=SearchResponse)
+async def search(request: SearchRequest) -> SearchResponse:
+    """Search jobs across multiple platforms."""
+    try:
+        jobs = await search_jobs(
+            query=request.query,
+            sites=request.sites,
+            city=request.city,
+        )
+        return SearchResponse(
+            jobs=jobs,
+            total=len(jobs),
+            query=request.query,
+        )
+    except Exception as e:
+        logger.error(f"Search failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

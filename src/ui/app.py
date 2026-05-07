@@ -76,6 +76,19 @@ def get_session_reports(session_id: str) -> list:
     return []
 
 
+def search_jobs(query: str, sites: list = None, city: str = None) -> list:
+    """Search jobs across platforms."""
+    data = {"query": query}
+    if sites:
+        data["sites"] = sites
+    if city:
+        data["city"] = city
+    result = api_request("POST", "/search", data)
+    if isinstance(result, dict) and "jobs" in result:
+        return result["jobs"]
+    return []
+
+
 def render_sidebar():
     """Render sidebar with session management."""
     st.sidebar.title("会话管理")
@@ -113,9 +126,68 @@ def render_sidebar():
     )
 
 
+def render_search_section():
+    """Render job search section."""
+    st.subheader("🔎 职位搜索")
+
+    with st.expander("搜索职位", expanded=False):
+        col1, col2, col3 = st.columns([2, 1, 1])
+        with col1:
+            search_query = st.text_input("搜索关键词", placeholder="例如：Python工程师、前端开发", key="search_query")
+        with col2:
+            search_city = st.text_input("城市", placeholder="例如：北京、上海", key="search_city")
+        with col3:
+            sites = st.multiselect("站点", ["liepin", "boss"], default=["liepin"], key="search_sites")
+
+        if st.button("🔍 开始搜索", key="do_search"):
+            if search_query:
+                with st.spinner("搜索中..."):
+                    jobs = search_jobs(search_query, sites, search_city if search_city else None)
+
+                if jobs:
+                    st.session_state.search_results = jobs
+                    st.success(f"找到 {len(jobs)} 个职位")
+                else:
+                    st.session_state.search_results = []
+                    st.info("未找到相关职位")
+
+    # Display search results
+    if "search_results" in st.session_state and st.session_state.search_results:
+        st.markdown("### 搜索结果")
+        for i, job in enumerate(st.session_state.search_results):
+            with st.container():
+                col1, col2 = st.columns([4, 1])
+                with col1:
+                    st.markdown(f"**{job.get('title', '未知职位')}** @ {job.get('company', '未知公司')}")
+                    cols = st.columns([1, 1, 2])
+                    with cols[0]:
+                        st.markdown(f"💰 {job.get('salary', '薪资面议')}")
+                    with cols[1]:
+                        st.markdown(f"📍 {job.get('address', '未知')}")
+                    with cols[2]:
+                        if job.get('job_url'):
+                            st.markdown(f"[查看详情]({job.get('job_url')})")
+                with col2:
+                    if st.button("📚 研究", key=f"research_{i}"):
+                        # Extract company name or use query
+                        company = job.get('company', search_query)
+                        st.session_state.research_from_search = {
+                            "company": company,
+                            "position": job.get('title', '')
+                        }
+                        st.rerun()
+                st.markdown("---")
+
+
 def render_research_form():
     """Render research input form."""
     st.subheader("🔍 新研究")
+
+    # Check if we came from search
+    prefill = st.session_state.get("research_from_search", {})
+    if prefill:
+        st.info(f"从搜索结果导入：{prefill.get('company')} - {prefill.get('position')}")
+        st.session_state.pop("research_from_search", None)
 
     with st.form("research_form"):
         col1, col2 = st.columns([1, 1])
@@ -123,11 +195,13 @@ def render_research_form():
             company = st.text_input(
                 "公司",
                 placeholder="例如：字节跳动、Google",
+                value=prefill.get("company", ""),
             )
         with col2:
             position = st.text_input(
                 "职位",
                 placeholder="例如：后端工程师、SRE",
+                value=prefill.get("position", ""),
             )
 
         submitted = st.form_submit_button(
@@ -224,6 +298,8 @@ def main():
     col_main, col_chat = st.columns([1, 1])
 
     with col_main:
+        render_search_section()
+        st.markdown("---")
         company, position = render_research_form()
         st.markdown("---")
         render_report_section()
